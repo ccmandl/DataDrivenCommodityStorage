@@ -1,0 +1,133 @@
+model DDA_SEQ_1 ! 1 Period look-ahead
+uses "mmxprs", "mmsheet"; 
+
+parameters
+Period=1	
+end-parameters
+
+
+setparam("XPRS_MIPRELSTOP",1e-8)
+setparam("XPRS_MAXTIME",1000)
+
+declarations
+	
+!Sets
+Tau: set of integer 
+
+!Parameters
+Tmax: integer
+Tau_min: integer
+Tau_max: integer
+f_t:   array(Tau) of real 		
+f_i_t: array(Tau) of real		
+f_o_t: array(Tau) of real		
+C: real							
+InitInv: real					
+c_h: real						
+c_i: real						
+c_o: real						
+eta_i: real						
+eta_o: real						
+G_i: real						
+G_o: real						
+ForecastHorizon: integer		
+
+s_i: 	array(Tau) of mpvar		
+s_o: 	array(Tau) of mpvar		
+Inv:	array(Tau) of mpvar		
+
+!Constraint Labels
+ct1a: array(Tau) of logctr
+ct2a: array(Tau) of logctr
+ct3a: array(Tau) of logctr
+ct1b: array(Tau) of logctr
+ct2b: array(Tau) of logctr
+ct3b: array(Tau) of logctr
+
+!Solution Values
+sol_s_i_Period1: 	real
+sol_s_o_Period1: 	real
+objValue: 			real
+end-declarations
+
+initializations from !Database
+Tmax as !...
+end-initializations	
+
+if(Period<Tmax)then
+initializations from !Database
+ForecastHorizon as !...
+end-initializations
+end-if
+if(Period=Tmax)then
+ForecastHorizon:=0
+end-if
+	
+Tau_min:=1
+Tau_max:=Tau_min+ForecastHorizon	
+
+initializations from !Database	
+Tau as !...
+f_t as !...
+C as !...
+InitInv as !...
+c_h as !...
+c_i as !...
+c_o as !...
+eta_i as !...	
+eta_o as !...
+G_i as !...
+G_o as !...
+end-initializations
+
+!Friction adjustment
+forall(tau in Tau)do
+f_i_t(tau):=1/eta_i * f_t(tau) + c_i
+f_o_t(tau):=eta_o * f_t(tau) - c_o
+end-do
+
+
+!Initialize Arrays
+forall(tau in Tau) create(s_i(tau))
+forall(tau in Tau) create(s_o(tau))
+forall(tau in Tau) create(Inv(tau))
+
+!Constraints
+forall(tau in 1..Tau_max|tau<Tau_max)do
+Inv(tau+1)=Inv(tau)-s_o(tau)+s_i(tau)
+end-do
+Inv(1)=InitInv
+
+forall(tau in Tau) do
+s_o(tau)<=Inv(tau)
+s_o(tau)>=0
+s_o(tau)<=G_o
+end-do
+
+forall(tau in Tau) do
+s_i(tau)<=C-Inv(tau)+s_o(tau)
+s_i(tau)>=0
+s_i(tau)<=G_i
+end-do
+
+forall(tau in Tau)do
+s_i(tau) is_free
+s_o(tau) is_free
+Inv(tau) is_free
+end-do
+
+!Objective
+maximize ((sum(tau in Tau)(f_o_t(tau)*s_o(tau)-f_i_t(tau)*s_i(tau)-c_h*Inv(tau))))
+
+!Write to Excel
+sol_s_i_Period1 := getsol(s_i(1))
+sol_s_o_Period1 := getsol(s_o(1))
+
+objValue := getobjval
+
+initializations to !Database
+sol_s_i_Period1 as !...
+sol_s_o_Period1 as !...
+end-initializations
+
+end-model

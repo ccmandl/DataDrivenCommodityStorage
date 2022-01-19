@@ -1,0 +1,103 @@
+model OPT
+uses "mmxprs", "mmsheet"; 
+
+parameters
+ID=1
+end-parameters
+
+
+setparam("XPRS_MIPRELSTOP",1e-8)
+setparam("XPRS_MAXTIME",1000)
+
+declarations
+	
+!Sets
+T: set of integer 
+
+!Parameters
+p_i: array(T) of real 		
+p_o: array(T) of real		
+C: real						
+Tmax: integer 				
+Tmin: integer 				
+InitInv: real				
+c_h: real					
+G_i: real			
+G_o: real			
+
+!Decision Variables
+s_i: 	array(T) of mpvar		
+s_o: 	array(T) of mpvar		
+Inv:	array(T) of mpvar		
+
+!Solution Values
+sol_s_i: 	array(T) of real
+sol_s_o: 	array(T) of real
+sol_I:		array(T) of real
+objValue: 	real
+end-declarations
+
+initializations from !Database
+Tmin as !...
+Tmax as !...
+end-initializations
+
+initializations from !Database 	
+T as !...
+p_i as !...
+p_o as !...
+C as !...
+G_i as !...
+G_o as !...
+InitInv as !...	
+c_h as !...
+end-initializations
+
+
+!Initialize Arrays
+forall(t in T) create(s_i(t))
+forall(t in T) create(s_o(t))
+forall(t in T) create(Inv(t))
+
+!Constraints
+forall(t in 1..Tmax|t<Tmax)
+Inv(t+1)=Inv(t)-s_o(t)+s_i(t)
+Inv(Tmin)=InitInv
+
+
+forall(t in T) do
+s_o(t)<=Inv(t)
+s_o(t) <= G_o
+s_o(t)>=0
+end-do
+
+forall(t in T) do
+s_i(t) <= C - Inv(t)
+s_i(t) <= G_i
+s_i(t)>=0
+end-do
+
+forall(t in T)do
+s_i(t) is_free
+s_o(t) is_free
+Inv(t) is_free
+end-do
+
+!Objective
+maximize (1/(Tmax-Tmin+1)*(sum(t in T)(p_o(t)*s_o(t)-p_i(t)*s_i(t)-c_h*Inv(t))))
+
+!Write to Excel
+forall(t in T) sol_s_i(t) := getsol(s_i(t))
+forall(t in T) sol_s_o(t) := getsol(s_o(t))
+forall(t in T) sol_Inv(t) := getsol(Inv(t))
+
+objValue := getobjval
+
+initializations to !Excel
+objValue as !...
+sol_Inv as !...
+sol_s_i as !...
+sol_s_o as !...
+end-initializations
+
+end-model
