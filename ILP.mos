@@ -1,4 +1,4 @@
-model IA_1 ! 1 Period look-ahead
+model IA_1 
 uses "mmxprs", "mmsheet"; 
 
 parameters
